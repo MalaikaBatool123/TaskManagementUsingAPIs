@@ -15,12 +15,6 @@ Route::middleware([
 Route::get('/tasks', [TaskController::class, 'getTasks'])->name('tasks');
 
 });
-// Route::middleware('auth:sanctum')->get('tasks', [TaskController::class, 'getTasks']);
-
-// Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-//     return $request->user();
-// });
-// Route::get('tasks', [TaskController::class, 'getTasks']);
 
 Route::middleware('auth:sanctum')->group(function () {
 });

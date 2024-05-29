@@ -186,7 +186,7 @@
                     <form id="taskForm">
                         @csrf
                         <input type="hidden" id="taskId" name="taskId" />
-                        <!-- Title input -->
+                        
                         <div class="mb-3">
                             <label for="title" class="form-label">Title</label>
                             <input type="text" class="form-control" name="title" id="title" />
@@ -197,18 +197,12 @@
                             <textarea class="form-control" name="description" id="description"></textarea>
                         </div>
 
-                        <!-- Status dropdown -->
                         <div class="mb-3">
                             <label for="status" class="form-label">Status</label>
                             <select class="form-select" name="status" id="status"></select>
                         </div>
                         <div class="modal-footer">
-                            <!-- <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                Close
-                            </button>
-                            <button type="button" class="btn btn-primary" id="saveChangesBtn">
-                                Save changes
-                            </button> -->
+                            
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                                 Cancel
                             </button>
@@ -218,14 +212,7 @@
                         </div>
                     </form>
                 </div>
-                <!-- <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        Close
-                    </button>
-                    <button type="button" class="btn btn-primary" id="saveChangesBtn">
-                        Save changes
-                    </button>
-                </div> -->
+               
             </div>
         </div>
     </div>
@@ -257,9 +244,9 @@
                         <div class="mb-3">
                             <label for="add-status" class="form-label">Status</label>
                             <select class="form-select" name="add-status" id="add-status">
-                                @foreach ($statusOptions as $status)
-                                    <option value="{{ $status }}">{{ ucfirst($status) }}</option>
-                                @endforeach
+                               <option value="pending">pending</option>
+                               <option value="in-progress">in-progress</option>
+                               <option value="completed">completed</option>
                             </select>
                         </div>
                         <div class="mb-3">
@@ -306,216 +293,148 @@
         //         console.error('Error fetching tasks:', error);
         //         // Handle errors appropriately (e.g., display an error message)
         //     });
-        document.getElementById('addTaskForm').addEventListener('submit', function (event) {
-            event.preventDefault(); // Prevent the default form submission
-            const formData = new FormData(this);
-            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const TaskManager = (() => {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-            // Map field names to remove "add-" prefix
-            const mappedFormData = new FormData();
-            for (const [key, value] of formData.entries()) {
-                const newKey = key.replace('add-', ''); // Remove the prefix
-                mappedFormData.append(newKey, value);
+    const fetchWrapper = async (url, method, body = null, headers = {}) => {
+        const defaultHeaders = {
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': csrfToken
+        };
+        headers = { ...defaultHeaders, ...headers };
+        const response = await fetch(url, { method, headers, body });
+        if (!response.ok) {
+            if (response.status === 422) {
+                const data = await response.json();
+                const errors = data.errors;
+                for (const field in errors) {
+                    const errorMessages = errors[field];
+                    alert(errorMessages);
+                }
+            } else {
+                throw new Error('Something went wrong. Please try again.');
             }
+        }
+        return response.json();
+    };
 
-            fetch('/api/add/tasks', {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken
-                },
-                body: mappedFormData // Send the modified FormData
-            })
-                .then(response => {
-                    if (!response.ok) { // Check if the response is not ok (status code not 2xx)
-                        if (response.status === 422) {
-                            // Handle validation errors specifically
-                            return response.json().then(data => {
-                                // Display validation error messages (e.g., using a modal or inline alerts)
-                                const errors = data.errors;
-                                for (const field in errors) {
-                                    const errorMessages = errors[field];
-                                    alert(errorMessages);
-                                }
-                            });
-                        } else {
-                            // Handle other errors (e.g., 500 Internal Server Error)
-                            throw new Error('Something went wrong. Please try again.');
-                        }
-                    }
-                    return response.json(); // Parse the successful response as JSON
-                })
-                .then(data => {
-                    // Handle the successful response from the API
-                    console.log('Task created successfully:', data);
-                    // Update the UI to reflect the new task (e.g., add a row to the table)
-                    // ... (You'll need to add your specific UI update logic here)
+    const mapFormData = (formData, prefix) => {
+        const mappedFormData = new FormData();
+        for (const [key, value] of formData.entries()) {
+            const newKey = key.replace(prefix, ''); // Remove the prefix
+            mappedFormData.append(newKey, value);
+        }
+        return mappedFormData;
+    };
 
-                    // Optionally, reset the form
-                    this.reset();
-                    location.reload();
-                })
-                .catch(error => {
-                    // Handle any errors that occurred during the request
-                    console.error('Error creating task:', error.message);
+    const handleFormSubmit = async (event, url, method, prefix = 'add-', callback) => {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const mappedFormData = mapFormData(formData, prefix);
+        const body = method === 'POST' ? mappedFormData : JSON.stringify(Object.fromEntries(mappedFormData));
+        const headers = method === 'POST' ? {} : { 'Content-Type': 'application/json' };
 
-                    // Display a generic error message to the user
-                    alert(error.message);
-                });
+        try {
+            const data = await fetchWrapper(url, method, body, headers);
+            console.log('Task processed successfully:', data);
+            event.target.reset();
+            if (callback) callback(data);
+        } catch (error) {
+            console.error('Error processing task:', error.message);
+            alert(error.message);
+        }
+    };
+
+    const initAddTaskForm = () => {
+        const form = document.getElementById('addTaskForm');
+        form.addEventListener('submit', (event) => {
+            handleFormSubmit(event, '/api/add/tasks', 'POST', 'add-', () => location.reload());
         });
+    };
 
-
-        const editButtons = document.querySelectorAll('.edit-btn');
-
-        // Attach a click event listener to each edit button
-        editButtons.forEach(button => {
-            button.addEventListener('click', function () {
+    const initEditButtons = () => {
+        document.querySelectorAll('.edit-btn').forEach(button => {
+            button.addEventListener('click', async function () {
                 const taskId = this.getAttribute('data-task-id');
-
-                // Fetch the existing task data using the edit route
-                fetch(`/api/tasks/${taskId}/edit`)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Could not fetch task details.');
-                        }
-                        return response.json();
-                    })
-                    .then(taskData => {
-                        console.log(taskData)
-                        // Populate the form fields with the fetched data
-                        document.getElementById('taskId').value = taskData.data.id;
-                        document.getElementById('title').value = taskData.data.title;
-                        document.getElementById('description').value = taskData.data.description;
-                        // document.getElementById('status').value = taskData.data.status;
-                        const statusSelect = document.getElementById('status');
-                        statusSelect.innerHTML = ''; // Clear existing options
-
-                        // Create a new option element for the already saved status
-                        const savedStatusOption = document.createElement('option');
-                        savedStatusOption.value = taskData.data.status;
-                        savedStatusOption.text = taskData.data.status.charAt(0).toUpperCase() + taskData.data.status.slice(1);
-                        savedStatusOption.selected = true; // Set as selected
-                        statusSelect.add(savedStatusOption, 0); // Add it at the beginning
-
-                        // Populate the select with options fetched from the api
-                        taskData.statusOptions.forEach(status => {
-                            const option = document.createElement('option');
-                            option.value = status;
-                            option.text = status.charAt(0).toUpperCase() + status.slice(1); // Capitalize the first letter
-                            statusSelect.add(option);
-                        });
-                        // (Optionally) show the update modal if you're using one
-                        // ... (e.g., $('#updateModal').modal('show');)
-                    })
-                    .catch(error => {
-                        console.error('Error fetching task:', error.message);
-                        alert('An error occurred while fetching the task details.');
-                    });
+                try {
+                    const taskData = await fetchWrapper(`/api/tasks/${taskId}/edit`, 'GET');
+                    populateEditForm(taskData);
+                } catch (error) {
+                    console.error('Error fetching task:', error.message);
+                    alert('An error occurred while fetching the task details.');
+                }
             });
         });
+    };
 
-        // Update task submission handling (add this outside the loop)
-        document.getElementById('taskForm').addEventListener('submit', function (event) {
-            event.preventDefault(); // Prevent default form submission
-
-            const formData = new FormData(this);
-            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-            const taskId = document.getElementById('taskId').value; // Get the task ID
-
-            fetch(`/api/tasks/${taskId}/edit`, {
-                method: 'PUT',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken
-                },
-                body: JSON.stringify({
-                    taskId: document.getElementById('taskId').value,
-                    title: document.getElementById('title').value,
-                    description: document.getElementById('description').value,
-                    status: document.getElementById('status').value,
-                })
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        if (response.status === 422) {
-                            return response.json().then(data => {
-                                const errors = data.errors;
-                                for (const field in errors) {
-                                    const errorMessages = errors[field];
-                                    alert(errorMessages); // Display error messages to the user
-                                }
-                            });
-                        } else {
-                            throw new Error('Something went wrong. Please try again later.');
-                        }
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('Task updated successfully:', data);
-                    // setTimeout(function() {
-                    location.reload(); // Refresh the entire page
-                    // }, 500); 
-                    // Update the UI to reflect the changes 
-                    const taskRow = document.querySelector(`tr[data-task-id="${taskId}"]`);
-                    if (taskRow) {
-                        taskRow.querySelectorAll('td')[0].textContent = data.data.title; // update the first td i.e title
-                        taskRow.querySelectorAll('td')[1].textContent = data.data.description; //update the second td i.e description
-                        taskRow.querySelectorAll('td')[2].textContent = data.data.status; //update the third td i.e status
-                    }
-
-
-                })
-                .catch(error => {
-                    console.error('Error updating task:', error.message);
-                    alert(error.message); // Display error message to the user
-                });
+    const populateEditForm = (taskData) => {
+        document.getElementById('taskId').value = taskData.data.id;
+        document.getElementById('title').value = taskData.data.title;
+        document.getElementById('description').value = taskData.data.description;
+        const statusSelect = document.getElementById('status');
+        statusSelect.innerHTML = '';
+        const savedStatusOption = new Option(taskData.data.status, taskData.data.status, true, true);
+        statusSelect.add(savedStatusOption, 0);
+        taskData.statusOptions.forEach(status => {
+            const option = new Option(status.charAt(0).toUpperCase() + status.slice(1), status);
+            statusSelect.add(option);
         });
+    };
 
+    const initEditTaskForm = () => {
+        const form = document.getElementById('taskForm');
+        form.addEventListener('submit', (event) => {
+            const taskId = document.getElementById('taskId').value;
+            handleFormSubmit(event, `/api/tasks/${taskId}/edit`, 'PUT', '', (data) => {
+                updateTaskRow(data.data);
+                location.reload();
+            });
+        });
+    };
 
-        // Get all delete buttons
-        const deleteButtons = document.querySelectorAll('.del-btn');
+    const updateTaskRow = (taskData) => {
+        const taskRow = document.querySelector(`tr[data-task-id="${taskData.id}"]`);
+        if (taskRow) {
+            taskRow.querySelectorAll('td')[0].textContent = taskData.title;
+            taskRow.querySelectorAll('td')[1].textContent = taskData.description;
+            taskRow.querySelectorAll('td')[2].textContent = taskData.status;
+        }
+    };
 
-        deleteButtons.forEach(button => {
+    const initDeleteButtons = () => {
+        document.querySelectorAll('.del-btn').forEach(button => {
             button.addEventListener('click', function () {
                 const taskId = this.getAttribute('data-task-id');
-
                 if (confirm('Are you sure you want to delete this task?')) {
-                    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
-                    fetch(`/api/tasks/${taskId}/delete`, {
-                        method: 'DELETE',  // Use DELETE for deleting
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken
-                        }
-                    })
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error('Could not delete task.');
-                            }
-                            return response.json();
-                        })
+                    fetchWrapper(`/api/tasks/${taskId}/delete`, 'DELETE')
                         .then(data => {
                             console.log('Task deleted successfully:', data);
-
-                            // Remove the deleted task from the table
                             const taskRow = document.querySelector(`tr[data-task-id="${taskId}"]`);
-                            if (taskRow) {
-                                taskRow.remove();
-                            }
+                            if (taskRow) taskRow.remove();
                             location.reload();
                         })
                         .catch(error => {
+                            console.error('Error deleting task:', error.message);
                             location.reload();
-                            // console.error('Error deleting task:', error.message);
-                            // alert('An error occurred while deleting the task.');
                         });
                 }
             });
         });
+    };
 
+    return {
+        init: () => {
+            initAddTaskForm();
+            initEditButtons();
+            initEditTaskForm();
+            initDeleteButtons();
+        }
+    };
+})();
+
+document.addEventListener('DOMContentLoaded', () => {
+    TaskManager.init();
+});
 
     </script>
 

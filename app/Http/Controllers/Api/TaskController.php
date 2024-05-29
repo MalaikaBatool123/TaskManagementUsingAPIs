@@ -10,18 +10,7 @@ use App\Models\Task;
 
 class TaskController extends Controller
 {
-    // public function getTasks()
-    // {
-    //     $userId = Auth::id();
-    //     $tasks = Task::where('user_id', $userId)->get();
-    //     // $tasks=Task::all();
-
-    //     return response()->json([
-    //         'success' => true,
-    //         'message' => 'Tasks retrieved successfully',
-    //         'data' => $tasks
-    //     ]);
-    // }
+    
     public function getTasks()
     {
         $userId = Auth::id();
@@ -88,7 +77,7 @@ class TaskController extends Controller
         try {
             $task = Task::find($id);
             
-        $statusOptions = Task::distinct()->pluck('status');
+        $statusOptions = ['pending','in-progress','completed'];
             return response()->json([
                 'success' => true,
                 'message' => 'Task displayed',
